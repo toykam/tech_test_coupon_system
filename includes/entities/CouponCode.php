@@ -40,13 +40,13 @@ class CouponCode {
         $amountRange = $coupon['min_amount'];
 
         if ((count($cartItems) >= $itemRange) && $cart['total_amount'] >= $amountRange) {
-            $percentage = (int) $coupon['value'];
-            $percentageAmount = ($percentage/100) * $cart['total_amount'];
+            // $percentage = (int) $coupon['value'];
+            // $percentageAmount = ($percentage/100) * $cart['total_amount'];
 
             // echo "Percentage: $percentage";
             // echo "Percentage Amount: $percentageAmount";
     
-            $amountPayable = $cart['total_amount'] - $percentageAmount;
+            $amountPayable = self::get_discount_amount('PERCENT', $coupon['value'], $cart['total_amount']);
             $cart['amount_payable'] = $amountPayable;
             $cart['coupon_code'] = $coupon['code'];
     
@@ -62,9 +62,8 @@ class CouponCode {
         $amountRange = $coupon['min_amount'];
 
         if ((count($cartItems) >= $itemRange) && $cart['total_amount'] >= $amountRange) {
-            $discountAmount = $coupon['value'];
-
-            $amountPayable = $cart['total_amount'] - $discountAmount;
+            
+            $amountPayable = self::get_discount_amount('FIXED', $coupon['value'], $cart['total_amount']);;
             $cart['amount_payable'] = $amountPayable;
             $cart['coupon_code'] = $coupon['code'];
 
@@ -74,6 +73,44 @@ class CouponCode {
         }
     }
     private static function mixed_coupon($cart, $coupon) {
+        $cartItems = Cart::get_cart_items($cart['cart_id']);
 
+        $itemRange = $coupon['min_item'];
+        $amountRange = $coupon['min_amount'];
+
+        if ((count($cartItems) >= $itemRange) && $cart['total_amount'] >= $amountRange) {
+            // check for percent
+            $percentAmount = self::get_discount_amount('PERCENT', $coupon['value'], $cart['total_amount']);
+            // check for fixed
+            $fixedAmount = self::get_discount_amount('FIXED', $coupon['value'], $cart['total_amount']);
+            // compare result
+            // echo "PERCENT AMOUNT: $percentAmount";
+            // echo "FIXED AMOUNT: $fixedAmount";
+            if (($cart['total_amount'] - $percentAmount) > ($cart['total_amount'] - $fixedAmount)) {
+                // Use Percentage Amount
+                $cart['amount_payable'] = $percentAmount;
+                $cart['coupon_code'] = $coupon['code'];
+            } else {
+                // Use Fixed Amount
+                $cart['amount_payable'] = $fixedAmount;
+                $cart['coupon_code'] = $coupon['code'];
+            }
+
+            return ['status' => true, 'data' => ['cart' => $cart]];
+        } else {
+            return ['status' => false, 'data' => "Coupon terms not met\nMin Items: $itemRange\nMin Payable Amount: $amountRange"];
+        }
+    }
+
+    private static function get_discount_amount($type, $value, $amount) {
+        if ($type == 'FIXED') {
+            return $amount - $value;
+        } else if ($type == 'PERCENT') {
+            $percentage = (int) $value;
+            $percentageAmount = ($percentage/100) * $amount;
+            return ($amount - $percentageAmount);
+        } else {
+            return 0;
+        }
     }
 }
